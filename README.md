@@ -1,5 +1,5 @@
 ## ChatMap（后端 + Web 前端 + 微信小程序）
-
+## 这是一个纯vibe coding项目
 这是一个「AI 旅游助手」项目的仓库，包含三部分：
 
 1. `chat-map-backend`：Spring Boot 后端（为 Web 前端提供 `/api/...` 接口，代管 DeepSeek 调用密钥）
