@@ -1,0 +1,27 @@
+# 复制到 /etc/systemd/system/chat-map-backend.service
+# 按需修改 User、WorkingDirectory、ExecStart 中的 jar 路径
+#
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now chat-map-backend
+
+[Unit]
+Description=ChatMap Spring Boot API
+After=network.target
+
+[Service]
+Type=simple
+# 先执行: useradd -r -s /usr/sbin/nologin chatmap && chown -R chatmap:chatmap /opt/chatmap
+User=chatmap
+Group=chatmap
+WorkingDirectory=/opt/chatmap
+# 密钥：/etc/chatmap.env 中设置 APP_LLM_API_KEY=sk-...（chmod 600）
+EnvironmentFile=-/etc/chatmap.env
+ExecStart=/usr/bin/java -Dspring.profiles.active=prod -jar /opt/chatmap/chat-map-backend.jar
+Restart=on-failure
+RestartSec=10
+
+# 资源可按机器调整
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

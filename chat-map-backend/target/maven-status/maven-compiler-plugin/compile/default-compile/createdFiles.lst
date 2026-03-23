@@ -1,0 +1,11 @@
+com\chatmap\web\TravelChatController.class
+com\chatmap\dto\AttractionPoint.class
+com\chatmap\config\CorsConfig.class
+com\chatmap\dto\RouteInfo.class
+com\chatmap\dto\AccommodationPoint.class
+com\chatmap\dto\TravelChatRequest.class
+com\chatmap\service\TravelChatService.class
+com\chatmap\dto\TravelChatResponse.class
+com\chatmap\ChatMapApplication.class
+com\chatmap\config\LlmProperties.class
+com\chatmap\dto\WeatherItem.class

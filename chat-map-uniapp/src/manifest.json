@@ -1,0 +1,17 @@
+{
+  "name": "ChatMap",
+  "appid": "",
+  "description": "AI 旅游助手（小程序直连大模型，无自建后端）",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wxb7c529a08f26bd5b",
+    "cloudfunctionRoot": "cloudfunctions/",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  },
+  "vueVersion": "3"
+}

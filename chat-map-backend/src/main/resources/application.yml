@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+app:
+  cors:
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+  llm:
+    # base-url / model 固定；密钥勿写进仓库，启动时传入（见 deploy/README.txt）
+    base-url: https://api.deepseek.com/v1/chat/completions
+    api-key: ""
+    model: deepseek-chat
+
+spring:
+  jackson:
+    default-property-inclusion: non_null
