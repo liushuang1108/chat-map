@@ -15,6 +15,16 @@
 - `chat-map-uniapp/`：uni-app 微信小程序
 - `deploy/`：服务器上部署 Web+后端的说明与 Nginx 配置
 
+### 界面截图
+
+**Web 端截图**
+
+![ChatMap Web 端截图](docs/images/web-screenshot.png)
+
+**小程序截图**
+
+![ChatMap 小程序截图](docs/images/miniapp-screenshot.png)
+
 ---
 
 ## 本地运行（开发/联调）
