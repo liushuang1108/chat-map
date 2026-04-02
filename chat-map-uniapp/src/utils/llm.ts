@@ -1,6 +1,7 @@
 import { LLM_MODE } from '@/config'
 import { SYSTEM_PROMPT } from './prompt'
 import { parseTravelJson } from './parse'
+import { alignTripDaysWithQuestion, extractTripDaysFromQuestion } from './tripDays'
 import type { TravelChatResponse } from '@/types/chat'
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions'
@@ -34,7 +35,7 @@ export async function callDeepSeekTravel(apiKey: string, question: string): Prom
         model: MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: question },
+          { role: 'user', content: buildUserMessage(question) },
         ],
       },
       success: resolve,
@@ -58,7 +59,21 @@ export async function callDeepSeekTravel(apiKey: string, question: string): Prom
     throw new Error('模型返回格式异常')
   }
 
-  return parseTravelJson(raw.trim())
+  return finalizeTravelResponse(parseTravelJson(raw.trim()), question)
+}
+
+function buildUserMessage(question: string): string {
+  const n = extractTripDaysFromQuestion(question)
+  if (n == null) return question
+  return (
+    `${question}\n\n` +
+    `【系统约束】用户已明确为 ${n} 天行程。你必须：tripDays=${n}；每个景点必须有 day 字段且为 1～${n} 的整数；` +
+    `第1天、第2天…分别只放该天要去的景点；每天至少 1 个景点。`
+  )
+}
+
+function finalizeTravelResponse(data: TravelChatResponse, question: string): TravelChatResponse {
+  return alignTripDaysWithQuestion(data, question)
 }
 
 function callTravelCloud(question: string): Promise<TravelChatResponse> {
@@ -76,7 +91,7 @@ function callTravelCloud(question: string): Promise<TravelChatResponse> {
   return new Promise((resolve, reject) => {
     wxMp.cloud.callFunction({
       name: 'callTravel',
-      data: { question },
+      data: { question: buildUserMessage(question) },
       success: (res) => {
         const r = res.result as CloudFnResult | undefined
         if (!r) {
@@ -93,7 +108,7 @@ function callTravelCloud(question: string): Promise<TravelChatResponse> {
           return
         }
         try {
-          resolve(parseTravelJson(raw.trim()))
+          resolve(finalizeTravelResponse(parseTravelJson(raw.trim()), question))
         } catch (e) {
           reject(e instanceof Error ? e : new Error(String(e)))
         }

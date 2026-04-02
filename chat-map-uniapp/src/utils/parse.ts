@@ -27,15 +27,24 @@ export function parseTravelJson(raw: string): TravelChatResponse {
       }))
     : []
 
-  const toPoi = (o: Record<string, unknown>, kind: MapPoi['kind']): MapPoi => ({
-    kind,
-    name: String(o.name ?? ''),
-    lng: Number(o.lng),
-    lat: Number(o.lat),
-    note: String(o.note ?? ''),
-    description: String(o.description ?? ''),
-    imageUrl: String(o.imageUrl ?? ''),
-  })
+  const toPoi = (o: Record<string, unknown>, kind: MapPoi['kind']): MapPoi => {
+    const rawDay = o.day
+    let day: number | undefined
+    if (rawDay !== null && rawDay !== undefined && rawDay !== '') {
+      const n = Number(rawDay)
+      if (Number.isFinite(n) && n > 0) day = Math.floor(n)
+    }
+    return {
+      kind,
+      ...(day != null ? { day } : {}),
+      name: String(o.name ?? ''),
+      lng: Number(o.lng),
+      lat: Number(o.lat),
+      note: String(o.note ?? ''),
+      description: String(o.description ?? ''),
+      imageUrl: String(o.imageUrl ?? ''),
+    }
+  }
 
   const attractions: MapPoi[] = Array.isArray(node.attractions)
     ? (node.attractions as Record<string, unknown>[]).map((a) => toPoi(a, 'attraction'))
@@ -55,10 +64,18 @@ export function parseTravelJson(raw: string): TravelChatResponse {
     }
   }
 
+  let tripDays: number | null = null
+  const td = node.tripDays
+  if (td !== null && td !== undefined && td !== '') {
+    const n = Number(td)
+    if (Number.isFinite(n) && n >= 1) tripDays = Math.floor(n)
+  }
+
   return {
     reply,
     weather,
     clothingAdvice,
+    tripDays,
     route,
     attractions,
     accommodations,

@@ -11,7 +11,13 @@
     "setting": {
       "urlCheck": false
     },
-    "usingComponents": true
+    "usingComponents": true,
+    "permission": {
+      "scope.userLocation": {
+        "desc": "用于进入小程序时在地图上定位到您当前位置"
+      }
+    },
+    "requiredPrivateInfos": ["getLocation"]
   },
   "vueVersion": "3"
 }

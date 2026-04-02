@@ -24,13 +24,23 @@ const mapScale = ref(5)
 
 const markerPoiById = ref<Record<number, MapPoi>>({})
 
+/** 与 static 目录下资源对应，编译后根路径为 /static/ */
+const MARKER_ICON_ATTRACTION = '/static/marker-attraction.png'
+const MARKER_ICON_HOTEL = '/static/marker-hotel.png'
+const MARKER_ICON_W = 40
+const MARKER_ICON_H = 44
+/** 锚点：图标底部中心落在坐标上 */
+const MARKER_ANCHOR = { x: 0.5, y: 1 }
+
 type MarkerItem = {
   id: number
   latitude: number
   longitude: number
   title: string
+  iconPath: string
   width: number
   height: number
+  anchor: { x: number; y: number }
   label?: {
     content: string
     color: string
@@ -45,9 +55,9 @@ type MarkerItem = {
 }
 
 const markers = ref<MarkerItem[]>([])
-const polyline = ref<
-  Array<{ points: Array<{ latitude: number; longitude: number }>; color: string; width: number }>
->([])
+
+/** 已获准定位时在地图上显示用户位置点 */
+const showUserLocation = ref(false)
 
 const selectedPoi = ref<MapPoi | null>(null)
 
@@ -67,6 +77,37 @@ const navStyle = computed(() => ({
 const hasAiOutput = computed(
   () => answer.value != null || (errorMsg.value != null && errorMsg.value !== ''),
 )
+
+function formatDayHeading(day: number): string {
+  if (day < 0) return '其他推荐'
+  const cn = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  if (day >= 1 && day <= 10) return `第${cn[day - 1]}天`
+  return `第 ${day} 天`
+}
+
+/** 当模型返回 tripDays 且景点带 day 字段时，按天分组展示；否则为 null，用平铺列表 */
+const attractionDayGroups = computed((): { day: number; label: string; items: MapPoi[] }[] | null => {
+  const ans = answer.value
+  if (!ans?.attractions.length) return null
+  const td = ans.tripDays
+  if (td == null || td < 1) return null
+  const hasAnyDay = ans.attractions.some(
+    (p) => p.day != null && p.day >= 1 && p.day <= td,
+  )
+  if (!hasAnyDay) return null
+  const out: { day: number; label: string; items: MapPoi[] }[] = []
+  for (let d = 1; d <= td; d++) {
+    const items = ans.attractions.filter((p) => p.day === d)
+    if (items.length) out.push({ day: d, label: formatDayHeading(d), items })
+  }
+  const orphan = ans.attractions.filter(
+    (p) => p.day == null || p.day < 1 || p.day > td,
+  )
+  if (orphan.length) {
+    out.push({ day: -1, label: '其他推荐', items: orphan })
+  }
+  return out.length ? out : null
+})
 
 function loadKey() {
   try {
@@ -113,9 +154,11 @@ function togglePanel() {
   panelExpanded.value = !panelExpanded.value
 }
 
-function attLabel() {
+function attLabel(day?: number | null) {
+  const tag =
+    day != null && day > 0 ? formatDayHeading(day) : '景点'
   return {
-    content: '景点',
+    content: tag,
     color: '#ffffff',
     fontSize: 11,
     bgColor: '#059669',
@@ -153,9 +196,11 @@ function buildMapFromResponse(data: TravelChatResponse) {
       latitude: glat,
       longitude: glng,
       title: `【景点】${p.name}`,
-      width: 34,
-      height: 34,
-      label: attLabel(),
+      iconPath: MARKER_ICON_ATTRACTION,
+      width: MARKER_ICON_W,
+      height: MARKER_ICON_H,
+      anchor: MARKER_ANCHOR,
+      label: attLabel(p.day),
       callout: { content: p.name, display: 'BYCLICK' },
     })
     nid++
@@ -170,8 +215,10 @@ function buildMapFromResponse(data: TravelChatResponse) {
       latitude: glat,
       longitude: glng,
       title: `【住宿】${p.name}`,
-      width: 34,
-      height: 34,
+      iconPath: MARKER_ICON_HOTEL,
+      width: MARKER_ICON_W,
+      height: MARKER_ICON_H,
+      anchor: MARKER_ANCHOR,
       label: hotelLabel(),
       callout: { content: p.name, display: 'BYCLICK' },
     })
@@ -180,22 +227,6 @@ function buildMapFromResponse(data: TravelChatResponse) {
 
   markers.value = ms
   markerPoiById.value = idMap
-
-  const coords = data.route?.coordinates
-  let line: Array<{ latitude: number; longitude: number }> = []
-  if (coords && coords.length >= 2) {
-    line = coords.map(([lng, lat]) => {
-      const [gln, gla] = wgs84ToGcj02(lng, lat)
-      return { latitude: gla, longitude: gln }
-    })
-  } else if (data.attractions.length >= 2) {
-    line = data.attractions.map((a) => {
-      const [gln, gla] = wgs84ToGcj02(a.lng, a.lat)
-      return { latitude: gla, longitude: gln }
-    })
-  }
-  polyline.value =
-    line.length >= 2 ? [{ points: line, color: '#0284c7', width: 4 }] : []
 
   if (ms.length > 0) {
     const lats = ms.map((m) => m.latitude)
@@ -258,6 +289,28 @@ function openPanelFromHint() {
   panelExpanded.value = true
 }
 
+function centerOnUserLocation() {
+  const opts: UniApp.GetLocationOptions & {
+    isHighAccuracy?: boolean
+    highAccuracyExpireTime?: number
+  } = {
+    type: 'gcj02',
+    /** 微信小程序 2.9.0+：尽量用 GPS，真机上比纯网络定位准；模拟器位置可能不准 */
+    isHighAccuracy: true,
+    highAccuracyExpireTime: 5000,
+    success: (res) => {
+      mapLat.value = res.latitude
+      mapLng.value = res.longitude
+      mapScale.value = 15
+      showUserLocation.value = true
+    },
+    fail: () => {
+      showUserLocation.value = false
+    },
+  }
+  uni.getLocation(opts)
+}
+
 onMounted(() => {
   try {
     const sys = uni.getSystemInfoSync()
@@ -266,6 +319,7 @@ onMounted(() => {
     statusBarHeight.value = 44
   }
   loadKey()
+  centerOnUserLocation()
   refreshSheetScrollHeight()
 })
 
@@ -290,8 +344,8 @@ watch([answer, errorMsg], () => {
         :longitude="mapLng"
         :scale="mapScale"
         :markers="markers"
-        :polyline="polyline"
         :include-points="includePoints"
+        :show-location="showUserLocation"
         @markertap="onMarkerTap"
       />
     </view>
@@ -379,7 +433,31 @@ watch([answer, errorMsg], () => {
             <text class="w-txt">{{ w.condition }} {{ w.temperatureC != null ? w.temperatureC + '°C' : '' }}</text>
           </view>
 
-          <view v-if="answer && answer.attractions.length" class="block">
+          <view v-if="answer && answer.attractions.length && attractionDayGroups" class="block">
+            <text class="block-title">推荐景点</text>
+            <view
+              v-for="g in attractionDayGroups"
+              :key="'dg' + g.day"
+              class="day-block"
+            >
+              <text class="day-subtitle">{{ g.label }}</text>
+              <view
+                v-for="(p, i) in g.items"
+                :key="'a' + g.day + '-' + i"
+                class="poi-card poi-card--att"
+                @click="openPoi(p)"
+              >
+                <view class="poi-card__head">
+                  <text class="poi-badge poi-badge--att">景点</text>
+                  <text class="poi-name">{{ p.name }}</text>
+                </view>
+                <text class="poi-note">{{ p.note }}</text>
+                <text class="poi-preview">{{ p.description }}</text>
+              </view>
+            </view>
+          </view>
+
+          <view v-else-if="answer && answer.attractions.length" class="block">
             <text class="block-title">推荐景点</text>
             <view
               v-for="(p, i) in answer.attractions"
@@ -450,12 +528,6 @@ watch([answer, errorMsg], () => {
         <scroll-view scroll-y class="poi-pop__scroll">
           <text class="poi-pop__desc">{{ selectedPoi.description }}</text>
         </scroll-view>
-        <image
-          v-if="selectedPoi.imageUrl"
-          class="poi-pop__img"
-          :src="selectedPoi.imageUrl"
-          mode="aspectFill"
-        />
         <button class="poi-pop__close" @click="closePoi">关闭</button>
       </view>
     </view>
@@ -780,6 +852,19 @@ watch([answer, errorMsg], () => {
   margin-bottom: 10rpx;
 }
 
+.day-block {
+  margin-bottom: 8rpx;
+}
+
+.day-subtitle {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #059669;
+  display: block;
+  margin-bottom: 8rpx;
+  margin-top: 6rpx;
+}
+
 .poi-card {
   background: rgba(255, 255, 255, 0.62);
   border-radius: 14rpx;
@@ -940,14 +1025,6 @@ watch([answer, errorMsg], () => {
   font-size: 28rpx;
   color: #334155;
   line-height: 1.55;
-}
-
-.poi-pop__img {
-  width: 100%;
-  height: 280rpx;
-  border-radius: 12rpx;
-  margin-bottom: 20rpx;
-  background: #f1f5f9;
 }
 
 .poi-pop__close {
